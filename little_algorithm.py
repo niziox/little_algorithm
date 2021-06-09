@@ -2,32 +2,8 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+from typing import List
 
-
-
-def all_get_vertex_cost(G):
-    zeros_tab = []
-
-    for row in range(G.shape[0]):
-        for col in range(G.shape[1]):
-            if G[row, col] == 0:
-                get_vertex_cost(G, row, col, zeros_tab)
-
-
-
-
-
-
-
-
-if __name__ == '__main__':
-    cost_matrix = np.array([[np.inf, 10, 8, 19, 12],
-                      [10, np.inf, 20,  6,  3],
-                      [8,   20, np.inf, 4,  2],
-                      [19,  6,  4, np.inf,  7],
-                      [12,  3,  2,   7, np.inf]])
-
-    # print(get_vertex_cost(reduction(cost_matrix)[0], 0, 2))
 
 class CostMatrix:
     def __init__(self, m):
@@ -37,13 +13,13 @@ class CostMatrix:
         return len(self.matrix)
 
     def reduce_rows(self):
-        # odejęcie minimalnej wartości w każdym wierszu
+        # odjęcie minimalnej wartości w każdym wierszu
         row = self.matrix.min(axis=1)
         self.matrix = self.matrix - np.array([row]).T
         return sum(row)
 
     def reduce_cols(self):
-        # odejęcie minimalnej wartości w każdej kolumnie
+        # odjęcie minimalnej wartości w każdej kolumnie
         col = self.matrix.min(axis=0)
         self.matrix = self.matrix - col
 
@@ -65,18 +41,26 @@ class CostMatrix:
 
         return min_row + min_col
 
+
 class VertexT:
     def __init__(self, row=0, col=0):
         self.row = row
         self.col = col
 
+
 class NewVertex:
     def __init__(self, v=(0, 0), cost=0):
-        self.coordinates = VertexT(v)
+        if isinstance(v, VertexT):
+            self.coordinates = VertexT(v.row, v.col)
+        else:
+            self.coordinates = VertexT(*v)
         self.cost = cost
 
+
 class StageState:
-    def __init__(self, m, p, lb):
+    def __init__(self, m, p=None, lb=np.infty):
+        if p is None:
+            p = []
         self.matrix_ = m
         self.unsorted_path = p
         self.lower_bound_ = lb
@@ -102,7 +86,7 @@ class StageState:
             for i in range(len(first_p)):
                 if new_v.col == first_p[i]:
                     check_1 = False
-                if new_v.row ==second_p[i]:
+                if new_v.row == second_p[i]:
                     check_2 = False
             if check_1 or check_2:
                 self.append_to_path(new_v)
@@ -116,7 +100,7 @@ class StageState:
                     sorted_path.append(self.unsorted_path[i].row)
                     next = self.unsorted_path[i].col
                     break
-                if i+1 == len(self.unsorted_path):
+                if i + 1 == len(self.unsorted_path):
                     run = False
 
         return sorted_path
@@ -139,14 +123,14 @@ class StageState:
     def reduce_cost_matrix(self):
         sum = 0
         sum += self.matrix_.reduce_rows() + self.matrix_.reduce_cols()
+        return sum
 
     def choose_new_vertex(self):
         vertex_list = []
-        for row in range(len(self.matrix_)):
-            for col in range(len(self.matrix_[row])):
-                if self.matrix_[row, col] == 0:
-                    temp = {}
-                    temp[(row, col)] = self.matrix_.get_vertex_cost(row, col)
+        for row in range(self.matrix_.size()):
+            for col in range(self.matrix_.size()):
+                if self.matrix_.matrix[row, col] == 0:
+                    temp = {(row, col): self.matrix_.get_vertex_cost(row, col)}
                     vertex_list.append(temp)
 
         coords = list(vertex_list[0].keys())[0]
@@ -156,14 +140,88 @@ class StageState:
                 coords = list(pair.keys())[0]
                 cost = list(pair.values())[0]
         coords = VertexT(coords[0], coords[1])
-        return NewVertex()
-
-
+        return NewVertex(coords, cost)
 
     def update_cost_matrix(self, new_vertex):
-        self.matrix_[new_vertex.col, new_vertex.row] = np.inf
-        for elem in self.matrix_[new_vertex.row]:
-            elem = np.inf
+        self.matrix_.matrix[new_vertex.col, new_vertex.row] = np.inf
+        for i in range(self.matrix_.size()):
+            self.matrix_.matrix[new_vertex.row, i] = np.inf
 
-        for i in range(len(self.matrix_)):
-            self.matrix_[i, new_vertex.col] = np.inf
+        for i in range(self.matrix_.size()):
+            self.matrix_.matrix[i, new_vertex.col] = np.inf
+
+
+class TSPSolution:
+    def __init__(self, lower_bound, path):
+        self.lower_bound = lower_bound
+        self.path = path
+
+
+cost_t = int
+
+
+def get_optimal_cost(optimal_path, m) -> cost_t:
+    cost = 0
+    # zsumowanie wag krawędzi w ścieżce optymalnej
+    for idx in range(1, len(optimal_path)):
+        cost += m[optimal_path[idx - 1]][optimal_path[idx]]
+    # dodanie kosztu powrotu do wierzchołka początkowego
+    cost += m[optimal_path[len(optimal_path) - 1]][optimal_path[0]]
+    return cost
+
+
+def create_right_branch_matrix(m, vertex, lower_bound) -> StageState:
+    m.matrix[vertex.row, vertex.col] = np.infty
+    return StageState(m=m, p=[], lb=lower_bound)
+
+
+def filter_solutions(solutions: List[TSPSolution]) -> List[TSPSolution]:
+    optimal_cost = min(solutions, key=lambda s: s.lower_bound).lower_bound
+    optimal_solutions = list(filter(lambda s: s.lower_bound == optimal_cost, solutions))
+    return optimal_solutions
+
+
+def solve_tsp(cm):
+
+    left_branch = StageState(cm)
+    tree_lifo = [left_branch]
+    n_levels = cm.size() - 2
+
+    best_lb = np.infty
+    solutions = []
+
+    while tree_lifo:
+        left_branch = tree_lifo.pop()
+
+        while left_branch.get_level() != n_levels and left_branch.get_lower_bound() <= best_lb:
+
+            if left_branch.get_level() == 0:
+                left_branch.reset_lower_bound()
+
+            new_cost = left_branch.reduce_cost_matrix()
+            left_branch.update_lower_bound(new_cost)
+            if left_branch.get_lower_bound() > best_lb:
+                break
+
+            new_vertex = left_branch.choose_new_vertex()
+            left_branch.append_to_path(new_vertex.coordinates)
+            left_branch.update_cost_matrix(new_vertex.coordinates)
+            new_lower_bound = left_branch.get_lower_bound() + new_vertex.cost
+            tree_lifo.append(create_right_branch_matrix(cm, new_vertex.coordinates, new_lower_bound))
+
+        if left_branch.get_lower_bound() <= best_lb:
+            best_lb = left_branch.get_lower_bound()
+            new_path = left_branch.get_path()
+            solutions.append(TSPSolution(get_optimal_cost(new_path, cm), new_path))
+
+    return filter_solutions(solutions)
+
+
+if __name__ == '__main__':
+    cost_matrix = np.array([[np.inf, 10, 8, 19, 12],
+                            [10, np.inf, 20, 6, 3],
+                            [8, 20, np.inf, 4, 2],
+                            [19, 6, 4, np.inf, 7],
+                            [12, 3, 2, 7, np.inf]])
+    solve_tsp(CostMatrix(cost_matrix))
+    print('done')
