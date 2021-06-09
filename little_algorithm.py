@@ -38,4 +38,4 @@ if __name__ == '__main__':
                       [19,  6,  4, np.inf,  7],
                       [12,  3,  2,   7, np.inf]])
 
-    print(get_vertex_cost(reduction(cost_matrix)[0], 0, 1))
+    print(get_vertex_cost(reduction(cost_matrix)[0], 0, 2))
