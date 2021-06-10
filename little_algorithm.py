@@ -58,7 +58,7 @@ class NewVertex:
 
 
 class StageState:
-    def __init__(self, m, p=None, lb=np.infty):
+    def __init__(self, m, p=None, lb=0):
         if p is None:
             p = []
         self.matrix_ = m
@@ -66,11 +66,12 @@ class StageState:
         self.lower_bound_ = lb
 
     def get_path(self):
+        #self.reduce_cost_matrix()
         sorted_path = []
         legit_vertices = []
-        for i in range(len(self.matrix_)):
-            for j in range(len(self.matrix_)):
-                if self.matrix_[i, j] != np.inf:
+        for i in range(self.matrix_.size()):
+            for j in range(self.matrix_.size()):
+                if self.matrix_.matrix[i, j] != np.inf:
                     legit_vertices.append(VertexT(i, j))
         first_p = []
         second_p = []
@@ -79,7 +80,7 @@ class StageState:
             first_p.append(elem.row)
             second_p.append(elem.col)
 
-        unsorted_copy = self.unsorted_path.copy()
+        #unsorted_copy = self.unsorted_path.copy()
         for new_v in legit_vertices:
             check_1 = True
             check_2 = True
@@ -92,14 +93,16 @@ class StageState:
                 self.append_to_path(new_v)
 
         sorted_path.append(self.unsorted_path[0].row)
+        print(len(self.unsorted_path))
         next = self.unsorted_path[0].col
         run = True
         while run:
             for i in range(1, len(self.unsorted_path)):
-                if self.unsorted_path[i] == next:
+                if self.unsorted_path[i].row == next:
                     sorted_path.append(self.unsorted_path[i].row)
                     next = self.unsorted_path[i].col
                     break
+                print(i, len(self.unsorted_path))
                 if i + 1 == len(self.unsorted_path):
                     run = False
 
@@ -121,9 +124,7 @@ class StageState:
         self.lower_bound_ = 0
 
     def reduce_cost_matrix(self):
-        sum = 0
-        sum += self.matrix_.reduce_rows() + self.matrix_.reduce_cols()
-        return sum
+        return self.matrix_.reduce_rows() + self.matrix_.reduce_cols()
 
     def choose_new_vertex(self):
         vertex_list = []
@@ -132,7 +133,6 @@ class StageState:
                 if self.matrix_.matrix[row, col] == 0:
                     temp = {(row, col): self.matrix_.get_vertex_cost(row, col)}
                     vertex_list.append(temp)
-
         coords = list(vertex_list[0].keys())[0]
         cost = vertex_list[0][coords]
         for pair in vertex_list:
@@ -164,14 +164,14 @@ def get_optimal_cost(optimal_path, m) -> cost_t:
     cost = 0
     # zsumowanie wag krawędzi w ścieżce optymalnej
     for idx in range(1, len(optimal_path)):
-        cost += m[optimal_path[idx - 1]][optimal_path[idx]]
+        cost += m.matrix[optimal_path[idx - 1]][optimal_path[idx]]
     # dodanie kosztu powrotu do wierzchołka początkowego
-    cost += m[optimal_path[len(optimal_path) - 1]][optimal_path[0]]
+    cost += m.matrix[optimal_path[len(optimal_path) - 1]][optimal_path[0]]
     return cost
 
 
 def create_right_branch_matrix(m, vertex, lower_bound) -> StageState:
-    m.matrix[vertex.row, vertex.col] = np.infty
+    m.matrix[vertex.row, vertex.col] = np.inf
     return StageState(m=m, p=[], lb=lower_bound)
 
 
@@ -187,7 +187,7 @@ def solve_tsp(cm):
     tree_lifo = [left_branch]
     n_levels = cm.size() - 2
 
-    best_lb = np.infty
+    best_lb = np.inf
     solutions = []
 
     while tree_lifo:
@@ -204,6 +204,7 @@ def solve_tsp(cm):
                 break
 
             new_vertex = left_branch.choose_new_vertex()
+
             left_branch.append_to_path(new_vertex.coordinates)
             left_branch.update_cost_matrix(new_vertex.coordinates)
             new_lower_bound = left_branch.get_lower_bound() + new_vertex.cost
@@ -218,10 +219,13 @@ def solve_tsp(cm):
 
 
 if __name__ == '__main__':
-    cost_matrix = np.array([[np.inf, 10, 8, 19, 12],
-                            [10, np.inf, 20, 6, 3],
-                            [8, 20, np.inf, 4, 2],
-                            [19, 6, 4, np.inf, 7],
-                            [12, 3, 2, 7, np.inf]])
-    solve_tsp(CostMatrix(cost_matrix))
+    cost_matrix = np.array([[np.inf, 2, 80, 95, 76, 78],
+                            [2, np.inf, 3, 60, 70, 67],
+                            [80, 3, np.inf, 4, 69, 80],
+                            [95, 60, 4, np.inf, 5, 34],
+                            [76, 70, 69, 5, np.inf, 6],
+                            [78, 67, 80, 34, 6, np.inf]])
+    solutions = solve_tsp(CostMatrix(cost_matrix))
+    for s in solutions:
+        print(s.path)
     print('done')
